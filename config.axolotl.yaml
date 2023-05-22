@@ -1,0 +1,117 @@
+
+name: SHIFT6mq
+codename: axolotl
+description: |
+  SHIFTPHONES SHIFT6mq attached via a 1.8v FTDI USB<->UART adapter
+  with the #DTR and RTS pins connected to the power and volume up
+  buttons respectively.
+username: user
+password: 147147
+resting-state: fastboot
+
+connections: # NOTE: Serde internally tagsed enum!
+  - type: serial
+    label: uart
+    getty: true
+    path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AQ0277X2-if00-port0
+    baud: 115200
+    lines: true # Read lines instead of bytes
+  - type: usb
+    label: usb
+    port: 1-4 # lsplug
+  - type: ssh
+    label: ssh
+    host: 172.16.42.1
+    port: 22
+    alive_interval: 1
+    alive_count_max: 2
+
+controls:
+  - name: power
+    type: button
+    connection: uart
+    action: dtr
+  - name: volume_up
+    type: button
+    connection: uart
+    action: rts
+
+
+# List of device states and their triggers
+# Matches use substring search by default.
+# Sandwhich between two forward slashes ('/') to match as a regex.
+states:
+  - name: xbl
+  - name: edl
+  - name: fastboot
+  - name: linux
+    # Override the baud rate for this state.
+    properties:
+      - baud: 4000000
+  - name: kdb
+    properties:
+      - baud: 4000000
+
+transitions:
+  - to: xbl
+    from:
+    actions:
+      - source: uart
+        event: input
+        value: "Format: Log Type - Time(microsec) - Message - Optional Info"
+    triggers:
+      - name: reset
+        description: Hard reset the device
+        sequence:
+          - control: power
+            action: hold
+          - control: volume_up
+            action: hold
+
+  - to: fastboot
+    from: [xbl]
+    actions:
+      - source: uart
+        event: input
+        value: "Fastboot Build Info"
+    triggers:
+      - name: bootloader
+        description: Enter the bootloader
+        sequence:
+          - control: volume_up
+            action: hold
+
+  - to: edl
+    from: [xbl]
+    triggers:
+      - name: hang
+        description: Device is stuck in XBL, assuming EDL
+        timeout: 10
+
+  - to: linux
+    from: [xbl, fastboot, linux]
+    actions:
+      - source: uart
+        event: input
+        value: /Exit BS\s+\[\s*\d+\] UEFI End/
+    triggers:
+      - name: boot
+        from: [fastboot] # MUST be a subset of the transition's 'from' list
+        description: Boot the kernel
+        sequence:
+          - control: power
+            action: press
+            duration: 50
+
+  - to: kdb
+    from: [linux]
+    actions:
+      - source: uart
+        event: input
+        value: "<<FIXME>>"
+
+init:
+  - control: power
+    action: release
+  - control: volume_up
+    action: release

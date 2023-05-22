@@ -1,0 +1,29 @@
+[package]
+name = "fbug"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { version = "1.0.71", features = ["backtrace"] }
+chrono = "0.4.24"
+clap = { version = "4.2.7", features = ["derive", "string"] }
+env_logger = "0.10.0"
+futures = "0.3.28"
+inotify = "0.10.0"
+log = { version = "0.4.17", features = ["serde", "std"] }
+realpath-rs = "0.1.6"
+rs-graph = { version = "0.20.1", features = ["serialize"] }
+rs-graph-derive = "0.20.1"
+serde = { version = "1.0.163", features = ["derive"] }
+serde_yaml = "0.9.21"
+serialport = "4.2.0"
+strum = { version = "0.24.1", features = ["strum_macros"] }
+strum_macros = "0.24.3"
+thiserror = "1.0.40"
+titlecase = "2.2.1"
+tokio = { version = "1.28.1", features = ["full"] }
+tokio-inotify = "0.4.1"
+tokio-serial = "5.4.4"
+tokio-stream = "0.1.14"
