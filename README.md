@@ -14,9 +14,9 @@ things overly complicated..
 A config file is made up of a preamble, followed by a few specific sections:
 
 * **Connections**: A list of connections to the DUT and any assiociated config
-* **States**: A list of possible device states and how to detect when one is
-  entered
-* **Controls**: Describes what things fbug can change for this device
+* **States**: A list of possible device states and associated properties
+* **Controls**: Describes the available controls (e.g. power can be controlled
+  by sending these values over serial port X)
 * **Transitions**: An exhaustive list of valid state transitions and how they
   can be performed
 
@@ -138,8 +138,11 @@ transition to happen that isn't explicitly defined here.
     with a `/` are treated as PCRE regex.
 * timeout: (optional) indicates that this transition occurs if the device is in
   any of the "from" states for longer than the specified time (in seconds)
-* trigger: (optional) A list of sequences of controls to perform this state transition
-  * from: (the from states this sequence is valid for, or null (empty) for all valid from states)
+* triggers: (optional) A list of sequences of controls to perform this state transition
+  * name: (required) The name of the trigger (e.g. "reset")
+  * description: (required) a few words to explain what this trigger does
+  * from: (the from states this sequence is valid for, or null (empty) for if valid from all states)
+  * timeout: (required if sequence isn't specified) for triggers that will occur automatically.
   * sequence: (The sequence to perform)
     * control: the control to affect (or "wait")
     * action: one of ("on", "off", "press", "release", "hold") press/release are just aliases

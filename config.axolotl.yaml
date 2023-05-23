@@ -15,7 +15,8 @@ connections: # NOTE: Serde internally tagsed enum!
     getty: true
     path: /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AQ0277X2-if00-port0
     baud: 115200
-    lines: true # Read lines instead of bytes
+    # Read lines instead of bytes, enables line buffering
+    lines: true
   - type: usb
     label: usb
     port: 1-4 # lsplug

@@ -80,10 +80,11 @@ impl Connection for Serial {
 
     async fn read(&mut self) {
         let mut buf = vec![0; 1024];
-        match self.stream.read_buf(&mut buf).await {
+        match self.stream.read(&mut buf).await {
             Ok(n) if n > 0 => {
                 buf.truncate(n);
-                self.tx.send(Event::ConnectionEvent(ConnectionEvent::Data(buf))).unwrap();
+                buf.push(b'\n');
+                self.tx.send(Event::ConnectionEvent(ConnectionEvent::NewLine(String::from_utf8(buf).unwrap()))).unwrap();
             }
             Ok(_) => {}
             Err(e) => {

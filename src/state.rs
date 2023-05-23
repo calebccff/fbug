@@ -1,16 +1,11 @@
-use std::collections::LinkedList;
 use std::fmt::Debug;
 use std::fmt::Display;
 
-use crate::config::TransitionAction;
-use crate::config::TransitionTrigger;
-use crate::config::TransitionTriggerSequence;
-use crate::config::{Property};
-use rs_graph::classes;
+use crate::config::{TransitionAction, TransitionTrigger, TransitionTriggerSequence, Property};
 use rs_graph::{Buildable, Builder};
 use rs_graph::linkedlistgraph::*;
 use rs_graph::traits::*;
-use rs_graph::{LinkedListGraph, VecGraph};
+use rs_graph::LinkedListGraph;
 use rs_graph_derive::Graph;
 use serde::Deserialize;
 use anyhow::Result;
@@ -18,13 +13,11 @@ use titlecase::titlecase;
 
 #[derive(Clone, Default, Debug)]
 pub struct EdgeData {
-    /// Actions that cause this transition
-    /// detected by the state machine and actually
+    /// Actions that cause this transition detected by the state machine and actually
     /// cause the state machine to change
     pub actions: Vec<TransitionAction>,
-    /// triggers that can be used to cause this transition
-    /// e.g. a button press
-    /// should result in the associated action occuring
+    /// triggers that can be used to cause this transition e.g. a button press should
+    /// result in the associated action occuring
     pub triggers: Vec<TransitionTrigger>,
     ids: Vec<Edge<usize>>,
 }
