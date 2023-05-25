@@ -48,10 +48,10 @@ states:
   - name: linux
     # Override the baud rate for this state.
     properties:
-      - baud: 4000000
+      - baud: 3000000
   - name: kdb
     properties:
-      - baud: 4000000
+      - baud: 3000000
 
 transitions:
   - to: xbl
@@ -94,7 +94,7 @@ transitions:
     actions:
       - source: uart
         event: input
-        value: /Exit BS\s+\[\s*\d+\] UEFI End/
+        value: ^Exit BS\s+\[\s*\d+\] UEFI End
     triggers:
       - name: boot
         from: [fastboot] # MUST be a subset of the transition's 'from' list

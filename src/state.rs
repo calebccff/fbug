@@ -1,18 +1,22 @@
 use std::fmt::Debug;
 use std::fmt::Display;
+use std::sync::mpsc::SyncSender;
 
-use crate::config::{TransitionAction, TransitionTrigger, TransitionTriggerSequence, Property};
-use rs_graph::{Buildable, Builder};
+use crate::Event;
+use crate::config::{Property, TransitionAction, TransitionTrigger, TransitionTriggerSequence};
+use anyhow::Result;
+use regex::Regex;
 use rs_graph::linkedlistgraph::*;
 use rs_graph::traits::*;
 use rs_graph::LinkedListGraph;
+use rs_graph::{Buildable, Builder};
 use rs_graph_derive::Graph;
 use serde::Deserialize;
-use anyhow::Result;
 use titlecase::titlecase;
 
 #[derive(Clone, Default, Debug)]
 pub struct EdgeData {
+    pub to: String,
     /// Actions that cause this transition detected by the state machine and actually
     /// cause the state machine to change
     pub actions: Vec<TransitionAction>,
@@ -67,6 +71,7 @@ impl Debug for StateGraph {
 impl From<Transition> for EdgeData {
     fn from(t: Transition) -> Self {
         Self {
+            to: t.to,
             actions: t.actions,
             triggers: t.triggers,
             ids: t.ids,
@@ -76,7 +81,12 @@ impl From<Transition> for EdgeData {
 
 impl Display for TransitionTriggerSequence {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "\t* {} {} ", self.action, titlecase(&self.control.replace("_", " ")))?;
+        write!(
+            f,
+            "\t* {} {} ",
+            self.action,
+            titlecase(&self.control.replace("_", " "))
+        )?;
         if let Some(duration) = self.duration {
             write!(f, "for {}ms", duration)?;
         }
@@ -116,12 +126,13 @@ impl Display for TransitionTrigger {
 
 pub struct StateMachine {
     states: StateGraph,
+    current_state: Option<Node<usize>>,
 }
 
 impl StateMachine {
     pub fn new(mut states: Vec<State>, mut transitions: Vec<Transition>) -> Result<Self> {
         let mut g: LinkedListGraphBuilder<usize, State, EdgeData> = LinkedListGraph::new_builder();
-        
+
         for trans in transitions.iter_mut() {
             let (to, from) = get_states_for_transition(&states, &trans)?;
 
@@ -150,7 +161,12 @@ impl StateMachine {
                 };
                 let edge = g.add_edge(to_node, from_node);
                 trans.ids.push(edge);
-                log::trace!("Added edge {} from {} to {}", g.edge2id(edge), states[from].name, states[to].name);
+                log::trace!(
+                    "Added edge {} from {} to {}",
+                    g.edge2id(edge),
+                    states[from].name,
+                    states[to].name
+                );
             }
         }
 
@@ -162,7 +178,10 @@ impl StateMachine {
 
         //log::info!("State graph: {:#?}", sg);
 
-        Ok(Self { states: sg })
+        Ok(Self {
+            states: sg,
+            current_state: None,
+        })
     }
 
     pub fn list_triggers(&self) -> impl Iterator<Item = &TransitionTrigger> {
@@ -170,6 +189,65 @@ impl StateMachine {
             .edges
             .iter()
             .flat_map(|e| e.triggers.iter().filter(|t| t.sequence.len() != 0))
+    }
+
+    pub fn list_actions(&self) -> Vec<(&EdgeData, &TransitionAction)> {
+        let valid_actions: Vec<Edge<usize>> = match self.current_state {
+            Some(s) => self
+            .states
+            .incident_edges(s).map(|e| e.0)
+            .filter(|e| e.is_incoming()).collect(),
+            None => self.states.edges().collect(),
+        };
+        //trace!("Valid actions edges: {:?}", valid_actions.clone());
+        valid_actions.iter()
+            .flat_map(|e| {
+                self.states
+                    .edges
+                    .iter()
+                    .filter(move |t| t.ids.contains(&e))
+                    .flat_map(|t| t.actions.iter().map(move |a| (t, a)))
+            }).collect()
+    }
+
+    pub fn process_line(&mut self, line: &str) -> Option<Vec<Property>> {
+        let new_state = self.list_actions().iter_mut().find_map(|(t, a)| {
+            if a.value.starts_with("^") {
+                let re = Regex::new(&a.value[1..]).unwrap();
+                if re.is_match(line) {
+                    self.states.states.iter().find(|s| s.name == t.to)
+                } else {
+                    None
+                }
+            } else if line.matches(a.value.as_str()).count() > 0 {
+                self.states.states.iter().find(|s| s.name == t.to)
+            } else {
+                None
+            }
+        });
+
+        match new_state {
+            Some(state) => {
+                if let Some(state) = self.state_transition(state) {
+                    let props = state.properties.clone();
+                    self.current_state = state.node;
+                    return Some(props)
+                }
+                None
+            }
+            None => {
+                None
+            }
+        }
+    }
+
+    fn state_transition<'a>(&'a self, state: &'a State) -> Option<&State> {
+        warn!(target: "device:axolotl", "New state {}", state.name);
+        if state.node.is_none() {
+            log::warn!("State {} has no node", state.name);
+            return None;
+        }
+        Some(state)
     }
 }
 
@@ -191,11 +269,11 @@ fn get_states_for_transition(states: &Vec<State>, ts: &Transition) -> Result<(us
         .ok_or_else(|| anyhow::anyhow!("State {} not found", ts.to))?;
 
     let from = if from.len() == 0 {
-        states.iter().enumerate().filter_map(|e| if e.0 == to {
-            None
-        } else {
-            Some(e.0)
-        }).collect()
+        states
+            .iter()
+            .enumerate()
+            .filter_map(|e| if e.0 == to { None } else { Some(e.0) })
+            .collect()
     } else {
         from
     };

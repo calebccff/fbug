@@ -1,15 +1,16 @@
 use anyhow::Result;
 use clap::Parser;
 use env_logger::fmt::Formatter;
+use fbug::main_loop;
 use fbug::{config::load_config, connections::Connections, state::StateMachine, Event};
 use log::Record;
 use std::io::Write;
 use std::path::PathBuf;
-use tokio::sync::mpsc::unbounded_channel;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
+    // TODO: Have main conf + multiple per device configs
     #[arg(short, long, default_value = "XDG_CONFIG_HOME/fbug/config.yaml")]
     pub config_path: PathBuf,
 }
@@ -19,23 +20,8 @@ async fn main() -> Result<()> {
     setup_logging();
     let args = Args::parse();
     let device = load_config(&args.config_path).unwrap();
-    let sm = StateMachine::new(device.states, device.transitions)?;
-    let triggers = sm.list_triggers();
 
-    for trigger in triggers {
-        log::debug!("{}", trigger);
-    }
-
-    let (tx, mut rx) = unbounded_channel::<Event>();
-    let mut connections = Connections::new(tx, &device.connections).await?;
-
-    loop {
-        connections.poll().await?;
-        let event = rx.recv().await.unwrap();
-        log::debug!("{:?}", event);
-    }
-
-    Ok(())
+    main_loop(device).await
 }
 
 fn setup_logging() {
@@ -73,7 +59,7 @@ fn setup_logging() {
 
             write!(
                 buf,
-                "[{}] {} │ {} {}\n",
+                "[{:<5}] {} │ {} {}\n",
                 style.value(record.level()),
                 chrono::Local::now().format("%T%.3f"),
                 local_file_style.value(p),
